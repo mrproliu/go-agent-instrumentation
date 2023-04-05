@@ -8,9 +8,9 @@
 ## Structure
 
 ```
-|-- cmd // the toolexec program
-|-- frameworks // the third part framework instrument
-|-- frameworks/core // the base library of the instrument, third part instrument needs import this project
-|-- frameworks/gin // the gin framework instrument test
-|-- test // the gin server(which needs to be intrument)
+|-- cmd               // the toolexec program
+|-- frameworks        // the third part framework instrument
+|-- frameworks/core   // the base library of the instrument, third part instrument needs import this project
+|-- frameworks/gin    // the gin framework instrument test
+|-- test              // the gin server(which needs to be intrument)
 ```
