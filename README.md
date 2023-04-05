@@ -1,5 +1,8 @@
 # go-agent-instrumentation
 
+This project attempts to enhance Golang programs by introducing this program during `go build -toolexec=xxx`, 
+so that it can dynamically intercept framework code execution and add its own execution logic.
+
 ## Test
 1. Using command for build and start a gin server: `make test`
 2. Open Browser to visit: http://localhost:9999
