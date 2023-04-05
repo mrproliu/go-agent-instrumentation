@@ -12,7 +12,7 @@ type ServerHTTPInterceptor struct {
 
 func (s *ServerHTTPInterceptor) BeforeInvoke(invocation *core.Invocation) error {
 	context := invocation.Args[0].(*gin.Context)
-	fmt.Printf("request: %s\nheaders: %v\n", context.Request.RequestURI, context.Request.Header)
+	fmt.Printf("request URI: %s\n", context.Request.RequestURI)
 	core.SetGLS("test")
 	go func() {
 		time.Sleep(time.Second)
