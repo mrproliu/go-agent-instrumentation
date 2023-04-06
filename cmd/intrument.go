@@ -145,19 +145,6 @@ func main() {
 	return parsed.Decls[0].(*dst.FuncDecl).Body.List
 }
 
-func goStringToFunc(goString string) *dst.FuncDecl {
-	parsed, err := decorator.Parse(fmt.Sprintf(`
-package main
-
-%s
-`, goString))
-	if err != nil {
-		panic(fmt.Sprintf("parsing go failure: %v\n%s", err, goString))
-	}
-
-	return parsed.Decls[0].(*dst.FuncDecl)
-}
-
 type ParameterInfo struct {
 	Name                 string
 	Type                 dst.Expr
