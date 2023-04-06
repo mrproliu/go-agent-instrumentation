@@ -26,8 +26,8 @@ func init() {
 }
 
 type FrameworkInstrument struct {
-	points         []*InstrumentPoint
-	enhanceMethods []*FrameworkEnhanceMethodInfo
+	points   []*InstrumentPoint
+	enhances []FrameworkEnhanceInfo
 }
 
 func NewFrameworkInstrument() *FrameworkInstrument {
@@ -40,16 +40,22 @@ func NewFrameworkInstrument() *FrameworkInstrument {
 					Package: filepath.Join(inst.BasePackage(), point.PackagePath),
 					File:    point.FileName,
 					FilterAndEdit: func(cursor *dstutil.Cursor) bool {
-						if !p.FilterMethod(cursor) {
-							return false
+						if p.EnhanceStruct != nil && p.EnhanceStruct(cursor) {
+							spec := cursor.Node().(*dst.TypeSpec)
+							enhanceInfo := NewFrameworkEnhanceTypeInfo(p, i, spec)
+							result.enhances = append(result.enhances, enhanceInfo)
+
+							enhanceInfo.EnhanceField()
 						}
+						if p.FilterMethod != nil && p.FilterMethod(cursor) {
+							decl := cursor.Node().(*dst.FuncDecl)
+							methodInfo := NewFrameworkEnhanceMethodInfo(p, i, decl)
+							result.enhances = append(result.enhances, methodInfo)
 
-						decl := cursor.Node().(*dst.FuncDecl)
-						methodInfo := NewFrameworkEnhanceMethodInfo(p, i, decl)
-						result.enhanceMethods = append(result.enhanceMethods, methodInfo)
-
-						decl.Body.List = append(methodInfo.BuildForInvoker(), decl.Body.List...)
-						return true
+							decl.Body.List = append(methodInfo.BuildForInvoker(), decl.Body.List...)
+							return true
+						}
+						return false
 					},
 				}
 			}(point, inst))
@@ -64,20 +70,20 @@ func (f *FrameworkInstrument) HookPoints() []*InstrumentPoint {
 }
 
 func (f *FrameworkInstrument) WriteExtraFiles(basePath string) ([]string, error) {
-	if len(f.enhanceMethods) == 0 {
+	if len(f.enhances) == 0 {
 		return nil, nil
 	}
 	packageName := ""
-	if f.enhanceMethods[0].Point.PackagePath == "" {
-		packageName = filepath.Base(f.enhanceMethods[0].Instrument.BasePackage())
+	if f.enhances[0].GetPoint().PackagePath == "" {
+		packageName = filepath.Base(f.enhances[0].GetInstrument().BasePackage())
 	} else {
-		packageName = filepath.Base(f.enhanceMethods[0].Point.PackagePath)
+		packageName = filepath.Base(f.enhances[0].GetPoint().PackagePath)
 	}
 	file := &dst.File{
 		Name: dst.NewIdent(packageName),
 	}
 
-	for _, m := range f.enhanceMethods {
+	for _, m := range f.enhances {
 		for _, fu := range m.BuildForAdapter() {
 			file.Decls = append(file.Decls, fu)
 		}
@@ -116,6 +122,11 @@ func init() {
 	}
 }
 
+type EnhancedInstance interface {
+	GetSkyWalkingDynamicField() interface{}
+	SetSkyWalkingDynamicField(interface{})
+}
+
 type Invocation struct {
 	CallerInstance interface{}
 	Args           []interface{}
@@ -128,7 +139,7 @@ type Invocation struct {
 	}
 
 	// temporary only process the root dir
-	insFS := f.enhanceMethods[0].Instrument.FS()
+	insFS := f.enhances[0].GetInstrument().FS()
 	dirEntries, err := fs.ReadDir(insFS, ".")
 	if err != nil {
 		panic(err)
@@ -154,7 +165,7 @@ type Invocation struct {
 		if err != nil {
 			return nil, err
 		}
-		var currentPackageImportPath = filepath.Join(f.enhanceMethods[0].Instrument.BasePackage(), f.enhanceMethods[0].Point.PackagePath)
+		var currentPackageImportPath = filepath.Join(f.enhances[0].GetInstrument().BasePackage(), f.enhances[0].GetPoint().PackagePath)
 		var shouldRemovePkgRef = []string{"core"}
 		dstutil.Apply(parse, func(cursor *dstutil.Cursor) bool {
 			node := cursor.Node()
@@ -193,6 +204,8 @@ type Invocation struct {
 							p.Fun = x.Sel
 						case *dst.StarExpr:
 							p.X = x.Sel
+						case *dst.TypeAssertExpr:
+							p.Type = x.Sel
 						}
 						//cursor.Parent().(dst.Expr).X = dst.NewIdent(x.Sel.Name)
 					}
@@ -236,6 +249,90 @@ func buildFrameworkFuncID(pkgPath string, node *dst.FuncDecl) string {
 		regexp.MustCompile(`[/.\-@]`).ReplaceAllString(pkgPath, "_"), receiver, node.Name)
 }
 
+type FrameworkEnhanceInfo interface {
+	GetPoint() *core.InstrumentPoint
+	GetInstrument() core.Instrument
+	BuildForAdapter() []*dst.FuncDecl
+}
+
+type FrameworkEnhanceTypeInfo struct {
+	Instrument core.Instrument
+	Point      *core.InstrumentPoint
+	TypeSpec   *dst.TypeSpec
+}
+
+func NewFrameworkEnhanceTypeInfo(p *core.InstrumentPoint, i core.Instrument, typeSpec *dst.TypeSpec) *FrameworkEnhanceTypeInfo {
+	return &FrameworkEnhanceTypeInfo{Instrument: i, Point: p, TypeSpec: typeSpec}
+}
+
+func (f *FrameworkEnhanceTypeInfo) GetInstrument() core.Instrument {
+	return f.Instrument
+}
+
+func (f *FrameworkEnhanceTypeInfo) GetPoint() *core.InstrumentPoint {
+	return f.Point
+}
+
+func (f *FrameworkEnhanceTypeInfo) EnhanceField() {
+	structType := f.TypeSpec.Type.(*dst.StructType)
+	structType.Fields.List = append(structType.Fields.List, &dst.Field{
+		Names: []*dst.Ident{dst.NewIdent("skywalking_dynamic_field")},
+		Type:  dst.NewIdent("interface{}"),
+	})
+}
+
+func (f *FrameworkEnhanceTypeInfo) BuildForAdapter() []*dst.FuncDecl {
+	return []*dst.FuncDecl{
+		{
+			Name: &dst.Ident{Name: "GetSkyWalkingDynamicField"},
+			Recv: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Names: []*dst.Ident{dst.NewIdent("receiver")},
+						Type:  &dst.StarExpr{X: dst.NewIdent(f.TypeSpec.Name.Name)},
+					},
+				},
+			},
+			Type: &dst.FuncType{
+				Params: &dst.FieldList{},
+				Results: &dst.FieldList{
+					List: []*dst.Field{
+						{Type: dst.NewIdent("interface{}")},
+					},
+				},
+			},
+			Body: &dst.BlockStmt{
+				List: goStringToStmts("return receiver.skywalking_dynamic_field"),
+			},
+		},
+		{
+			Name: &dst.Ident{Name: "SetSkyWalkingDynamicField"},
+			Recv: &dst.FieldList{
+				List: []*dst.Field{
+					{
+						Names: []*dst.Ident{dst.NewIdent("receiver")},
+						Type:  &dst.StarExpr{X: dst.NewIdent(f.TypeSpec.Name.Name)},
+					},
+				},
+			},
+			Type: &dst.FuncType{
+				Params: &dst.FieldList{
+					List: []*dst.Field{
+						{
+							Names: []*dst.Ident{dst.NewIdent("param")},
+							Type:  dst.NewIdent("interface{}"),
+						},
+					},
+				},
+				Results: &dst.FieldList{},
+			},
+			Body: &dst.BlockStmt{
+				List: goStringToStmts("receiver.skywalking_dynamic_field = param"),
+			},
+		},
+	}
+}
+
 type FrameworkEnhanceMethodInfo struct {
 	Point          *core.InstrumentPoint
 	Instrument     core.Instrument
@@ -264,6 +361,14 @@ func NewFrameworkEnhanceMethodInfo(p *core.InstrumentPoint, i core.Instrument, f
 	info.adapterPreFuncName = fmt.Sprintf("%s%s", frameworkGeneratePrefix, funcID)
 	info.adapterPostFuncName = fmt.Sprintf("%s%s_ret", frameworkGeneratePrefix, funcID)
 	return info
+}
+
+func (e *FrameworkEnhanceMethodInfo) GetInstrument() core.Instrument {
+	return e.Instrument
+}
+
+func (e *FrameworkEnhanceMethodInfo) GetPoint() *core.InstrumentPoint {
+	return e.Point
 }
 
 func (e *FrameworkEnhanceMethodInfo) BuildForInvoker() []dst.Stmt {
@@ -360,7 +465,7 @@ func (e *FrameworkEnhanceMethodInfo) BuildForAdapter() []*dst.FuncDecl {
 
 	parse, err := template.New("").Parse(`invocation := &Invocation{}
 {{if .FuncRecvs -}}
-invocation.CallerInstance = recv_0	// for caller if exist
+invocation.CallerInstance = *recv_0	// for caller if exist
 {{- end}}
 invocation.Args = make([]interface{}, {{len .FuncParameters}})
 {{- range $index, $value := .FuncParameters}}

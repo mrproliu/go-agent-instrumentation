@@ -19,12 +19,7 @@ func (c *compileOptions) String() string {
 }
 
 func main() {
-	file, err := os.OpenFile("/Users/hanliu/Desktop"+"/"+"test.txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
-	if err != nil {
-		os.Exit(1)
-	}
-	file.Write([]byte(fmt.Sprintf("%v\n", os.Args[1:])))
-	defer file.Close()
+	writeArgs()
 	args := os.Args[1:]
 	option := parseCompileOption(args)
 	if option != nil && option.Package != "" && option.Output != "" {
@@ -37,6 +32,19 @@ func main() {
 	executeCommand(args, option)
 }
 
+func writeArgs() {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	file, err := os.OpenFile(homeDir+"/Desktop/go-agent-instrument.txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		os.Exit(1)
+	}
+	defer file.Close()
+	file.Write([]byte(fmt.Sprintf("%v\n", os.Args[1:])))
+}
+
 func executeCommand(args []string, opt *compileOptions) error {
 	path := args[0]
 	args = args[1:]
@@ -44,13 +52,6 @@ func executeCommand(args []string, opt *compileOptions) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
-	//file, err := os.OpenFile("/Users/hanliu/Desktop"+"/"+"test.txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
-	//if err != nil {
-	//	os.Exit(1)
-	//}
-	//file.Write([]byte(fmt.Sprintf("%s %v, opt: %v\n", path, args, opt)))
-	//defer file.Close()
 	return cmd.Run()
 }
 

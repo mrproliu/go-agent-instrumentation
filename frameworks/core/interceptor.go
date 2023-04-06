@@ -21,6 +21,11 @@ type Invocation struct {
 	Return   []interface{} // not fully implemented, return default value for now
 }
 
+type EnhancedInstance interface {
+	GetSkyWalkingDynamicField() interface{}
+	SetSkyWalkingDynamicField(interface{})
+}
+
 type Interceptor interface {
 	BeforeInvoke(invocation *Invocation) error
 	AfterInvoke(invocation *Invocation, result ...interface{}) error

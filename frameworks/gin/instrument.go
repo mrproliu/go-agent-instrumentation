@@ -45,6 +45,15 @@ func (i *Instrument) Points() []*core.InstrumentPoint {
 				return false
 			},
 			InterceptorName: "ServerHTTPInterceptor",
+			EnhanceStruct: func(cursor *dstutil.Cursor) bool {
+				switch n := cursor.Node().(type) {
+				case *dst.TypeSpec:
+					if n.Name.Name == "Engine" {
+						return true
+					}
+				}
+				return false
+			},
 		},
 	}
 }
