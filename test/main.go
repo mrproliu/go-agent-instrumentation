@@ -11,11 +11,4 @@ func main() {
 	})
 
 	engine.Run(":9999")
-	//http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-	//	defer request.Body.Close()
-	//	writer.Write([]byte("ok"))
-	//})
-	//
-	//err := http.ListenAndServe(":9999", nil)
-	//log.Fatal(err)
 }
