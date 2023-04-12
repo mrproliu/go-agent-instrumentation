@@ -22,6 +22,7 @@ type InstrumentPoint struct {
 
 type Instrument interface {
 	HookPoints() []*InstrumentPoint
+	ExtraChangesForEnhancedFile(filepath string) error
 	WriteExtraFiles(basePath string) ([]string, error)
 }
 
@@ -103,6 +104,9 @@ func instrument(args []string, opt *compileOptions) ([]string, error) {
 		if err := writeFile(fileInfo.dstFile, output); err != nil {
 			return nil, err
 		}
+		if err := inst.ExtraChangesForEnhancedFile(dest); err != nil {
+			return nil, err
+		}
 		args[fileInfo.argsIndex] = dest
 	}
 
@@ -132,12 +136,13 @@ type fileInfo struct {
 	instPoint []*InstrumentPoint
 }
 
-func goStringToStmts(goString string) []dst.Stmt {
-	parsed, err := decorator.Parse(fmt.Sprintf(`
+func goStringToStmts(goString string, minimized bool) []dst.Stmt {
+	data := fmt.Sprintf(`
 package main
 func main() {
 %s
-}`, goString))
+}`, goString)
+	parsed, err := decorator.ParseFile(nil, "builder.go", data, parser.ParseComments)
 	if err != nil {
 		panic(fmt.Sprintf("parsing go failure: %v\n%s", err, goString))
 	}

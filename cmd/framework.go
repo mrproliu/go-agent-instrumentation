@@ -26,13 +26,15 @@ func init() {
 }
 
 type FrameworkInstrument struct {
-	points   []*InstrumentPoint
-	enhances []FrameworkEnhanceInfo
+	points       []*InstrumentPoint
+	enhances     []FrameworkEnhanceInfo
+	replacements map[string]map[string]string
 }
 
 func NewFrameworkInstrument() *FrameworkInstrument {
 	points := make([]*InstrumentPoint, 0)
 	result := &FrameworkInstrument{}
+	replacements := make(map[string]map[string]string)
 	for _, inst := range frameworkInstruments {
 		for _, point := range inst.Points() {
 			points = append(points, func(p *core.InstrumentPoint, i core.Instrument) *InstrumentPoint {
@@ -52,7 +54,17 @@ func NewFrameworkInstrument() *FrameworkInstrument {
 							methodInfo := NewFrameworkEnhanceMethodInfo(p, i, decl)
 							result.enhances = append(result.enhances, methodInfo)
 
-							decl.Body.List = append(methodInfo.BuildForInvoker(), decl.Body.List...)
+							curFileReplacement := methodInfo.BuildForInvoker()
+
+							replacementsTmp := replacements[point.FileName]
+							if replacementsTmp == nil {
+								replacementsTmp = make(map[string]string)
+								replacements[point.FileName] = replacementsTmp
+							}
+							for k, v := range curFileReplacement {
+								replacementsTmp[k] = v
+								decl.Body.Decs.Lbrace.Prepend("\n", k)
+							}
 							return true
 						}
 						return false
@@ -62,6 +74,7 @@ func NewFrameworkInstrument() *FrameworkInstrument {
 		}
 	}
 	result.points = points
+	result.replacements = replacements
 	return result
 }
 
@@ -302,7 +315,7 @@ func (f *FrameworkEnhanceTypeInfo) BuildForAdapter() []*dst.FuncDecl {
 				},
 			},
 			Body: &dst.BlockStmt{
-				List: goStringToStmts("return receiver.skywalking_dynamic_field"),
+				List: goStringToStmts("return receiver.skywalking_dynamic_field", false),
 			},
 		},
 		{
@@ -327,7 +340,7 @@ func (f *FrameworkEnhanceTypeInfo) BuildForAdapter() []*dst.FuncDecl {
 				Results: &dst.FieldList{},
 			},
 			Body: &dst.BlockStmt{
-				List: goStringToStmts("receiver.skywalking_dynamic_field = param"),
+				List: goStringToStmts("receiver.skywalking_dynamic_field = param", false),
 			},
 		},
 	}
@@ -371,7 +384,7 @@ func (e *FrameworkEnhanceMethodInfo) GetPoint() *core.InstrumentPoint {
 	return e.Point
 }
 
-func (e *FrameworkEnhanceMethodInfo) BuildForInvoker() []dst.Stmt {
+func (e *FrameworkEnhanceMethodInfo) BuildForInvoker() map[string]string {
 	invokerResultParams := ""
 	if len(e.FuncResults) > 0 {
 		beforeFuncInvokeResultParams := make([]string, 0)
@@ -415,17 +428,16 @@ func (e *FrameworkEnhanceMethodInfo) BuildForInvoker() []dst.Stmt {
 		invokerRealResult += strings.Join(paramRefs, ", ")
 	}
 
-	return goStringToStmts(fmt.Sprintf(`if %s_sw_invocation, _sw_keep := %s(%s); !_sw_keep {
-	return %s
-} else {
-	defer %s(_sw_invocation%s)
-}`, invokerResultParams,
+	result := fmt.Sprintf(`if %s_sw_invocation, _sw_keep := %s(%s); !_sw_keep { return %s } else { defer %s(_sw_invocation%s) };`, invokerResultParams,
 		e.adapterPreFuncName,
 		invokerParams,
 		invokerSkipReturn,
 		e.adapterPostFuncName,
 		invokerRealResult,
-	))
+	)
+	replacedName := fmt.Sprintf("//goagent:enhance_%s\n", e.FuncDecl.Name.Name)
+	goStringToStmts(replacedName, false)
+	return map[string]string{replacedName: result}
 }
 
 func (e *FrameworkEnhanceMethodInfo) BuildForAdapter() []*dst.FuncDecl {
@@ -498,7 +510,7 @@ return {{ range $index, $value := .FuncResults -}}
 		panic(fmt.Errorf("write pre function tmplate failure: %v", err))
 	}
 	preFunc.Body = &dst.BlockStmt{
-		List: goStringToStmts(buffer.String()),
+		List: goStringToStmts(buffer.String(), false),
 	}
 
 	postFunc := &dst.FuncDecl{
@@ -532,7 +544,24 @@ inter.AfterInvoke(invocation{{ range $index, $value := .FuncResults -}}
 		panic(fmt.Errorf("write pre function tmplate failure: %v", err))
 	}
 	postFunc.Body = &dst.BlockStmt{
-		List: goStringToStmts(buffer.String()),
+		List: goStringToStmts(buffer.String(), false),
 	}
 	return []*dst.FuncDecl{preFunc, postFunc}
+}
+
+func (r *FrameworkInstrument) ExtraChangesForEnhancedFile(f string) error {
+	filePath := filepath.Base(f)
+	replacements := r.replacements[filePath]
+	if replacements == nil {
+		return nil
+	}
+	contentBytes, err := os.ReadFile(f)
+	if err != nil {
+		return err
+	}
+	contentString := string(contentBytes)
+	for k, v := range replacements {
+		contentString = strings.ReplaceAll(contentString, k, v)
+	}
+	return os.WriteFile(f, []byte(contentString), 0644)
 }

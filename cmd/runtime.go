@@ -60,7 +60,7 @@ func (r *RuntimeInstrument) HookPoints() []*InstrumentPoint {
 	if %s != nil && %s != nil {
 		%s.swtls = %s.swtls
 	}
-}()`, resultNames[0].Name, parameterNames[1].Name, resultNames[0].Name, parameterNames[1].Name)), n.Body.List...)
+}()`, resultNames[0].Name, parameterNames[1].Name, resultNames[0].Name, parameterNames[1].Name), false), n.Body.List...)
 					return true
 				}
 
@@ -68,6 +68,10 @@ func (r *RuntimeInstrument) HookPoints() []*InstrumentPoint {
 			},
 		},
 	}
+}
+
+func (r *RuntimeInstrument) ExtraChangesForEnhancedFile(filepath string) error {
+	return nil
 }
 
 func (r *RuntimeInstrument) WriteExtraFiles(basePath string) ([]string, error) {
