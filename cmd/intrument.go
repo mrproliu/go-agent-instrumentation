@@ -14,20 +14,33 @@ import (
 	"strings"
 )
 
+// InstrumentPoint 函数拦截点。
 type InstrumentPoint struct {
 	Package       string
 	File          string
 	FilterAndEdit func(cursor *dstutil.Cursor) bool
 }
 
+// Instrument 增强方法接口，对于每一个待自动埋点的库/函数创建一个结构体。在本项目中创建了runtime和gin的增强实例。
 type Instrument interface {
 	HookPoints() []*InstrumentPoint
 	ExtraChangesForEnhancedFile(filepath string) error
 	WriteExtraFiles(basePath string) ([]string, error)
 }
 
+// fileInfo 待增强文件信息。
+type fileInfo struct {
+	argsIndex int
+	// Decorated Syntax Tree 修饰语法树。
+	dstFile *dst.File
+	// InstrumentPoint 函数拦截点。
+	instPoint []*InstrumentPoint
+}
+
+// instrument 增强方法插入过程。
 func instrument(args []string, opt *compileOptions) ([]string, error) {
 	var inst Instrument
+	//判断编译指令中包含的库是否存在对应的增强方法，分别执行。
 	switch opt.Package {
 	case "runtime":
 		inst = NewRuntimeInstrument()
@@ -37,26 +50,31 @@ func instrument(args []string, opt *compileOptions) ([]string, error) {
 
 	var buildDir = filepath.Dir(opt.Output)
 
-	// basic filter matched files
+	//创建拦截后的待增强文件。
 	fileWithInfo := make(map[string]*fileInfo)
+	//过滤构建待增强文件。
 	for inx, path := range args {
+		//如果文件有.go后缀，跳过。
 		if !strings.HasSuffix(path, ".go") {
 			continue
 		}
+		//遍历函数拦截点。
 		for _, hp := range inst.HookPoints() {
+			//如果不在同一个包内，跳过。
 			if hp.Package != opt.Package {
 				continue
 			}
 			baseName := filepath.Base(path)
+			//如果同包不同文件，跳过。
 			if baseName != hp.File {
 				continue
 			}
-
+			//剩下的是成功匹配的同包同文件，确为需要增强改造的文件。使用修饰语法树拦截。
 			file, err := decorator.ParseFile(nil, path, nil, parser.ParseComments)
 			if err != nil {
 				return nil, err
 			}
-
+			//往拦截后的待增强文件中写入本次改造。
 			info := fileWithInfo[path]
 			if info == nil {
 				info = &fileInfo{
@@ -69,10 +87,11 @@ func instrument(args []string, opt *compileOptions) ([]string, error) {
 		}
 	}
 
-	// try to filter and edit file
 	instruments := make(map[string]bool)
+	//遍历待增强文件。
 	for path, info := range fileWithInfo {
 		hasInstruted := false
+		//覆盖写入修饰语法树。
 		dstutil.Apply(info.dstFile, func(cursor *dstutil.Cursor) bool {
 			for _, p := range info.instPoint {
 				if p.FilterAndEdit(cursor) {
@@ -83,14 +102,13 @@ func instrument(args []string, opt *compileOptions) ([]string, error) {
 		}, func(cursor *dstutil.Cursor) bool {
 			return true
 		})
-
 		if hasInstruted {
 			instruments[path] = true
 		}
 
 	}
 
-	// write instrumented files to the build directory
+	//把增强后的文件写入构建文件夹。
 	for updateFileSrc := range instruments {
 		fileInfo := fileWithInfo[updateFileSrc]
 		filename := filepath.Base(updateFileSrc)
@@ -110,7 +128,7 @@ func instrument(args []string, opt *compileOptions) ([]string, error) {
 		args[fileInfo.argsIndex] = dest
 	}
 
-	// write extra files if exist
+	//如果有其他辅助构建需要的文件，一并写入。
 	files, err := inst.WriteExtraFiles(buildDir)
 	if err != nil {
 		return nil, err
@@ -128,12 +146,6 @@ func writeFile(file *dst.File, w io.Writer) error {
 		return err
 	}
 	return printer.Fprint(w, fset, af)
-}
-
-type fileInfo struct {
-	argsIndex int
-	dstFile   *dst.File
-	instPoint []*InstrumentPoint
 }
 
 func goStringToStmts(goString string, minimized bool) []dst.Stmt {
