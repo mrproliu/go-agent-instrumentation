@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
@@ -16,9 +17,10 @@ func CheckAddressGinBefore() {
 		city, _ := io.ReadAll(response.Body)
 
 		c.String(http.StatusOK, " Address : "+string(province)+" Province "+string(city)+" City ")
+		fmt.Println(" Address : " + string(province) + " Province " + string(city) + " City ")
 	})
 	err := r.Run("127.0.0.1:2024")
 	if err != nil {
-		println(err)
+		fmt.Println(err)
 	}
 }

@@ -5,6 +5,9 @@ go 1.19
 require (
 	github.com/gin-gonic/gin v1.9.0
 	github.com/mrproliu/go-agent-instrumentation/framework/core v0.0.0-00010101000000-000000000000
+	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.37.0
+    	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.37.0
+    	go.opentelemetry.io/otel v1.11.2
 )
 
 replace github.com/mrproliu/go-agent-instrumentation/framework/core => ../core

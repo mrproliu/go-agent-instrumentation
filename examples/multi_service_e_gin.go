@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -13,7 +14,7 @@ func ProvinceGinBefore(c *gin.Context) {
 		c.String(http.StatusOK, MockGetProvinceBefore("3"))
 	}
 	if err != nil {
-		println(err)
+		fmt.Println(err)
 	}
 }
 
@@ -25,7 +26,7 @@ func CityGinBefore(c *gin.Context) {
 		c.String(http.StatusOK, MockGetCityBefore("4"))
 	}
 	if err != nil {
-		println(err)
+		fmt.Println(err)
 	}
 }
 
@@ -35,6 +36,6 @@ func ServerGinBefore() {
 	r.GET("/city", CityGinBefore)
 	err := r.Run("127.0.0.1:2025")
 	if err != nil {
-		println(err)
+		fmt.Println(err)
 	}
 }

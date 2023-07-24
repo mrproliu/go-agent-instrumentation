@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -15,6 +16,10 @@ var dbBefore *sql.DB
 func DBInitBefore() error {
 	var err error
 	dbBefore, err = sql.Open("mysql", "root:root@tcp(127.0.0.1:3306)/example")
+	err = dbBefore.QueryRow("select * from address").Err()
+	if err != nil {
+		fmt.Println(err)
+	}
 	return err
 }
 
