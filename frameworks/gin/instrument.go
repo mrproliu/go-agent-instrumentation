@@ -55,37 +55,6 @@ func (i *Instrument) Points() []*core.InstrumentPoint {
 				return false
 			},
 		},
-		{
-			PackagePath: "",
-			FileName:    "gin.go",
-			FilterMethod: func(cursor *dstutil.Cursor) bool {
-				switch n := cursor.Node().(type) {
-				case *dst.FuncDecl:
-					if n.Name.Name == "handleHTTPRequest" && len(n.Recv.List) > 0 {
-						expr, ok := n.Recv.List[0].Type.(*dst.StarExpr)
-						if !ok {
-							return false
-						}
-						ident, ok := expr.X.(*dst.Ident)
-						if !ok {
-							return false
-						}
-						return ident.Name == "Engine"
-					}
-				}
-				return false
-			},
-			InterceptorName: "OTELGINInterceptor",
-			EnhanceStruct: func(cursor *dstutil.Cursor) bool {
-				switch n := cursor.Node().(type) {
-				case *dst.TypeSpec:
-					if n.Name.Name == "Engine" {
-						return true
-					}
-				}
-				return false
-			},
-		},
 	}
 }
 

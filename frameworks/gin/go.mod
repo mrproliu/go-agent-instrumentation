@@ -3,11 +3,9 @@ module github.com/mrproliu/go-agent-instrumentation/frameworks/gin
 go 1.19
 
 require (
+	github.com/dave/dst v0.27.2
 	github.com/gin-gonic/gin v1.9.0
 	github.com/mrproliu/go-agent-instrumentation/framework/core v0.0.0-00010101000000-000000000000
-	go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin v0.37.0
-    	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.37.0
-    	go.opentelemetry.io/otel v1.11.2
 )
 
 replace github.com/mrproliu/go-agent-instrumentation/framework/core => ../core
@@ -15,12 +13,12 @@ replace github.com/mrproliu/go-agent-instrumentation/framework/core => ../core
 require (
 	github.com/bytedance/sonic v1.8.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
-	github.com/dave/dst v0.27.2 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.11.2 // indirect
 	github.com/goccy/go-json v0.10.0 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
